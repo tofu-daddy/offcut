@@ -47,11 +47,12 @@ export function renderDocument(ctx: CanvasRenderingContext2D, doc: EditorDocumen
 }
 
 /**
- * Draws the vertical-slices composition: a single fixed "backdrop" image,
- * revealed through per-strip clip windows that are themselves staggered
- * vertically — i.e. "the image stays fixed and the strips act as windows
- * that slide over it," so a strip's source and destination windows always
- * coincide (same rect, just clipped differently per strip).
+ * Draws the vertical-slices composition: each strip samples its own fixed
+ * region of the original image (unaffected by offset) and is drawn at its
+ * own offset-shifted destination — the same source/destination separation
+ * every other slice shape uses, so each piece carries a genuine, fixed
+ * slice of the photo with it as it staggers, rather than revealing a
+ * window into one shared backdrop.
  */
 export function drawVerticalSlices(
   ctx: CanvasRenderingContext2D,
@@ -63,22 +64,22 @@ export function drawVerticalSlices(
   ctx.rotate(layout.rotationRad);
   ctx.scale(layout.flipH ? -1 : 1, layout.flipV ? -1 : 1);
 
-  const { backdrop } = layout;
   for (const strip of layout.strips) {
+    const { source, destination } = strip;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(strip.x, strip.y, strip.width, strip.height);
+    ctx.rect(destination.x, destination.y, destination.width, destination.height);
     ctx.clip();
     ctx.drawImage(
       original.bitmap as CanvasImageSource,
-      backdrop.source.x,
-      backdrop.source.y,
-      backdrop.source.width,
-      backdrop.source.height,
-      backdrop.local.x,
-      backdrop.local.y,
-      backdrop.local.width,
-      backdrop.local.height,
+      source.x,
+      source.y,
+      source.width,
+      source.height,
+      destination.x,
+      destination.y,
+      destination.width,
+      destination.height,
     );
     ctx.restore();
   }

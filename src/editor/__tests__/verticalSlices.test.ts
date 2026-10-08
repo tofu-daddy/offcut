@@ -10,24 +10,53 @@ function settings(overrides: Partial<VerticalSlicesSettings> = {}): VerticalSlic
 }
 
 describe("computeVerticalSlicesLayout", () => {
-  it("produces exactly N equal-width strips with the fixed gap between them", () => {
+  it("produces exactly N equal-width strips with the fixed gap between destinations", () => {
     const layout = computeVerticalSlicesLayout(settings({ sliceCount: 5 }), IMAGE_W, IMAGE_H);
     expect(layout.strips).toHaveLength(5);
 
-    const widths = new Set(layout.strips.map((s) => Math.round(s.width * 1000)));
+    const widths = new Set(layout.strips.map((s) => Math.round(s.destination.width * 1000)));
     expect(widths.size).toBe(1); // all strips are the same width
 
     for (let i = 1; i < layout.strips.length; i++) {
-      const prev = layout.strips[i - 1];
-      const curr = layout.strips[i];
+      const prev = layout.strips[i - 1].destination;
+      const curr = layout.strips[i].destination;
       const gap = curr.x - (prev.x + prev.width);
       expect(gap).toBeCloseTo(VERTICAL_SLICES_GAP, 5);
     }
   });
 
-  it("staggers even strips up and odd strips down by the offset, so adjacent strips differ by 2x", () => {
+  it("gives each strip a distinct, non-overlapping, contiguous source band of the image", () => {
+    const layout = computeVerticalSlicesLayout(settings({ sliceCount: 5 }), IMAGE_W, IMAGE_H);
+    for (let i = 1; i < layout.strips.length; i++) {
+      const prevSource = layout.strips[i - 1].source;
+      const currSource = layout.strips[i].source;
+      // contiguous: this strip's source starts exactly where the previous one's ends
+      // (the gap is purely a destination/display concept, not a hole in sampled content)
+      expect(currSource.x).toBeCloseTo(prevSource.x + prevSource.width, 3);
+      // every strip samples the full source height (no per-strip vertical cropping)
+      expect(currSource.height).toBeCloseTo(prevSource.height, 5);
+      expect(currSource.y).toBeCloseTo(prevSource.y, 5);
+    }
+    // no two strips sample the same source pixels
+    const xs = layout.strips.map((s) => Math.round(s.source.x * 100));
+    expect(new Set(xs).size).toBe(layout.strips.length);
+  });
+
+  it("keeps each strip's source fixed regardless of offset — only the destination shifts", () => {
+    const noOffset = computeVerticalSlicesLayout(settings({ sliceCount: 5, offsetPx: 0 }), IMAGE_W, IMAGE_H);
+    const withOffset = computeVerticalSlicesLayout(settings({ sliceCount: 5, offsetPx: 60 }), IMAGE_W, IMAGE_H);
+
+    for (let i = 0; i < 5; i++) {
+      // the fixed slice of the photo this piece carries never changes...
+      expect(withOffset.strips[i].source).toEqual(noOffset.strips[i].source);
+      // ...only where it's drawn does.
+      expect(withOffset.strips[i].destination.y).not.toBeCloseTo(noOffset.strips[i].destination.y, 1);
+    }
+  });
+
+  it("staggers even strips' destinations up and odd strips' down by the offset, so adjacent strips differ by 2x", () => {
     const layout = computeVerticalSlicesLayout(settings({ sliceCount: 5, offsetPx: 22 }), IMAGE_W, IMAGE_H);
-    const [s0, s1, s2] = layout.strips;
+    const [s0, s1, s2] = layout.strips.map((s) => s.destination);
     // even (0) shifted up (smaller y), odd (1) shifted down (larger y)
     expect(s1.y - s0.y).toBeCloseTo(44, 5);
     expect(s1.y - s2.y).toBeCloseTo(44, 5);
@@ -38,9 +67,11 @@ describe("computeVerticalSlicesLayout", () => {
   it("reverses the stagger direction for a negative offset", () => {
     const positive = computeVerticalSlicesLayout(settings({ sliceCount: 5, offsetPx: 22 }), IMAGE_W, IMAGE_H);
     const negative = computeVerticalSlicesLayout(settings({ sliceCount: 5, offsetPx: -22 }), IMAGE_W, IMAGE_H);
+    const posY = positive.strips[0].destination.y;
+    const negY = negative.strips[0].destination.y;
     // strip 0 (even) moves up (smaller y) for +offset and down (larger y) for -offset
-    expect(positive.strips[0].y).toBeLessThan(negative.strips[0].y);
-    expect(negative.strips[0].y - positive.strips[0].y).toBeCloseTo(44, 5);
+    expect(posY).toBeLessThan(negY);
+    expect(negY - posY).toBeCloseTo(44, 5);
   });
 
   it("produces a valid layout at the minimum (2) and maximum (10) slice counts", () => {
@@ -48,20 +79,12 @@ describe("computeVerticalSlicesLayout", () => {
       const layout = computeVerticalSlicesLayout(settings({ sliceCount }), IMAGE_W, IMAGE_H);
       expect(layout.strips).toHaveLength(sliceCount);
       for (const strip of layout.strips) {
-        expect(strip.width).toBeGreaterThan(0);
-        expect(strip.height).toBeGreaterThan(0);
+        expect(strip.destination.width).toBeGreaterThan(0);
+        expect(strip.destination.height).toBeGreaterThan(0);
+        expect(strip.source.width).toBeGreaterThan(0);
+        expect(strip.source.height).toBeGreaterThan(0);
       }
     }
-  });
-
-  it("sizes the backdrop with enough vertical margin to support the max offset slide", () => {
-    const layout = computeVerticalSlicesLayout(settings({ offsetPx: 80 }), IMAGE_W, IMAGE_H);
-    const strip = layout.strips[0];
-    // the shifted strip's far edge must still be within the backdrop's local bounds
-    const backdropTop = layout.backdrop.local.y;
-    const backdropBottom = layout.backdrop.local.y + layout.backdrop.local.height;
-    expect(strip.y).toBeGreaterThanOrEqual(backdropTop - 0.001);
-    expect(strip.y + strip.height).toBeLessThanOrEqual(backdropBottom + 0.001);
   });
 
   it("maps rotationDeg to radians and passes flip flags through unchanged", () => {
