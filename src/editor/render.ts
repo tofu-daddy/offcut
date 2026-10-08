@@ -1,0 +1,137 @@
+import { shapeClipPath } from "./geometry";
+import type { EditorDocument, SliceLayer } from "./types";
+
+export interface RenderOptions {
+  /** When set, draws selection handles/outline for this layer. Omit for export. */
+  selectedLayerId?: string | null;
+}
+
+/**
+ * Draws the full document (original + slices) onto a canvas context whose
+ * coordinate space is already original-image pixels (caller sets up the
+ * ctx transform/scale before calling, e.g. via devicePixelRatio + CSS size).
+ */
+export function renderDocument(ctx: CanvasRenderingContext2D, doc: EditorDocument, options: RenderOptions = {}): void {
+  const { original, layers } = doc;
+  if (!original) return;
+
+  ctx.save();
+  ctx.clearRect(0, 0, original.width, original.height);
+  ctx.drawImage(original.bitmap as CanvasImageSource, 0, 0, original.width, original.height);
+
+  const ordered = [...layers].sort((a, b) => a.order - b.order);
+  for (const layer of ordered) {
+    drawSliceLayer(ctx, layer, original);
+  }
+  ctx.restore();
+
+  if (options.selectedLayerId) {
+    const selected = layers.find((l) => l.id === options.selectedLayerId);
+    if (selected) drawSelectionOverlay(ctx, selected);
+  }
+}
+
+function drawSliceLayer(ctx: CanvasRenderingContext2D, layer: SliceLayer, original: EditorDocument["original"]): void {
+  if (!original) return;
+  const { source, destination, shape } = layer;
+
+  ctx.save();
+  ctx.translate(destination.cx, destination.cy);
+  ctx.rotate((destination.rotation * Math.PI) / 180);
+  ctx.scale(destination.flipH ? -1 : 1, destination.flipV ? -1 : 1);
+
+  const clip = shapeClipPath(shape, destination.size);
+  ctx.clip(clip);
+
+  const half = destination.size / 2;
+  ctx.drawImage(
+    original.bitmap as CanvasImageSource,
+    source.x,
+    source.y,
+    source.size,
+    source.size,
+    -half,
+    -half,
+    destination.size,
+    destination.size,
+  );
+  ctx.restore();
+}
+
+const SELECTION_COLOR = "#2563eb";
+
+function drawSelectionOverlay(ctx: CanvasRenderingContext2D, layer: SliceLayer): void {
+  const { destination } = layer;
+  ctx.save();
+  ctx.translate(destination.cx, destination.cy);
+  ctx.rotate((destination.rotation * Math.PI) / 180);
+
+  const half = destination.size / 2;
+  const lineWidth = Math.max(1, destination.size * 0.01);
+
+  ctx.lineWidth = lineWidth;
+  ctx.strokeStyle = SELECTION_COLOR;
+  ctx.setLineDash([lineWidth * 3, lineWidth * 2]);
+  ctx.strokeRect(-half, -half, destination.size, destination.size);
+  ctx.setLineDash([]);
+
+  const handleRadius = Math.max(4, destination.size * 0.035);
+  const corners: [number, number][] = [
+    [-half, -half],
+    [half, -half],
+    [half, half],
+    [-half, half],
+  ];
+  ctx.fillStyle = "#ffffff";
+  for (const [hx, hy] of corners) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, handleRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Rotation handle above the top edge.
+  const rotHandleDist = half + handleRadius * 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -half);
+  ctx.lineTo(0, -rotHandleDist);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -rotHandleDist, handleRadius, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Rotation handle center in original-image coordinates, for hit-testing pointer gestures. */
+export function rotationHandleWorldPosition(layer: SliceLayer): { x: number; y: number } {
+  const { destination } = layer;
+  const half = destination.size / 2;
+  const handleRadius = Math.max(4, destination.size * 0.035);
+  const dist = half + handleRadius * 3;
+  const rad = (destination.rotation * Math.PI) / 180;
+  return {
+    x: destination.cx + Math.sin(rad) * dist,
+    y: destination.cy - Math.cos(rad) * dist,
+  };
+}
+
+export function cornerHandleWorldPositions(layer: SliceLayer): { x: number; y: number }[] {
+  const { destination } = layer;
+  const half = destination.size / 2;
+  const rad = (destination.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const local: [number, number][] = [
+    [-half, -half],
+    [half, -half],
+    [half, half],
+    [-half, half],
+  ];
+  return local.map(([lx, ly]) => ({
+    x: destination.cx + lx * cos - ly * sin,
+    y: destination.cy + lx * sin + ly * cos,
+  }));
+}
