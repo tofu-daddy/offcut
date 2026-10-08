@@ -81,12 +81,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 14px;
   padding: 24px;
   background: var(--screen-bg);
 }
 
 .photo-canvas-wrapper {
-  width: 100%;
+  flex: 1 1 auto;
   height: 100%;
   display: flex;
   align-items: center;
@@ -159,6 +160,13 @@
   gap: 8px;
 }
 
+/* Vertical-slices mode packs two extra control rows in, so it uses tighter
+   spacing than the default bottom-controls — scoped to this mode only. */
+.bottom-controls-vertical-slices {
+  gap: 4px;
+  padding: 8px 0 max(24px, env(safe-area-inset-bottom));
+}
+
 .transform-row {
   display: flex;
   align-items: center;
@@ -205,10 +213,30 @@
 }
 
 .shape-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 24px;
+}
+
+.shape-row-edge-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.shape-row-edge-fade-left {
+  left: 0;
+  background: linear-gradient(to right, var(--controls-bg), transparent);
+}
+
+.shape-row-edge-fade-right {
+  right: 0;
+  background: linear-gradient(to left, var(--controls-bg), transparent);
 }
 
 .shape-button {
@@ -264,6 +292,296 @@
   width: 7px;
   height: 7px;
   background: var(--ink);
+}
+
+/* ---------- Vertical slices controls ---------- */
+
+.control-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.control-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.control-hint {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+/* Slices stepper */
+
+.slice-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 32px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--ink);
+}
+
+.stepper-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stepper-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.stepper-minus {
+  display: block;
+  width: 12px;
+  height: 2px;
+  background: var(--ink);
+}
+
+.stepper-plus {
+  position: relative;
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.stepper-plus-v {
+  position: absolute;
+  left: 5px;
+  top: 0;
+  width: 2px;
+  height: 12px;
+  background: var(--ink);
+}
+
+.stepper-plus-h {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 12px;
+  height: 2px;
+  background: var(--ink);
+}
+
+.stepper-count {
+  width: 40px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid var(--border-strong, #d1d5db);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rotation slider (horizontal) */
+
+.rotation-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 0 32px;
+}
+
+.rotation-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rotation-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.rotation-track-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.rotation-track-fill {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  background: var(--ink);
+  border-radius: 3px;
+}
+
+.rotation-center-tick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  margin-top: -7px;
+  margin-left: -1px;
+  background: #9ca3af;
+}
+
+.rotation-thumb {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-top: -11px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  box-sizing: border-box;
+  cursor: grab;
+}
+
+.rotation-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rotation-end-icon {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+/* Offset slider (vertical, beside the canvas) */
+
+.offset-slider-column {
+  flex-shrink: 0;
+  width: 40px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.offset-label-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 12px;
+  text-align: center;
+}
+
+.offset-label-block .control-value {
+  font-size: 10px;
+}
+
+.offset-track {
+  position: relative;
+  flex: 1 1 auto;
+  width: 40px;
+  min-height: 80px;
+  display: flex;
+  justify-content: center;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.offset-track-bg {
+  position: absolute;
+  left: 50%;
+  top: 11px;
+  bottom: 11px;
+  width: 2px;
+  margin-left: -1px;
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.offset-track-fill {
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  border-radius: 3px;
+}
+
+.offset-center-tick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  margin-top: -0.5px;
+  margin-left: -5px;
+  background: #9ca3af;
+}
+
+.offset-thumb {
+  position: absolute;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  box-sizing: border-box;
+  cursor: grab;
+}
+
+.offset-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.offset-end-glyph {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.offset-end-glyph-top {
+  top: -6px;
+}
+
+.offset-end-glyph-bottom {
+  bottom: -6px;
 }
 
 /* ---------- Photo picker (empty state) ---------- */

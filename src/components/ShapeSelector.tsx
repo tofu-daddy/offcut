@@ -1,26 +1,28 @@
-import type { ShapeType } from "../editor/types";
-import { CircleShapeIcon, SquareShapeIcon, TriangleShapeIcon } from "./icons/Icons";
+import type { ToolMode } from "../editor/types";
+import { CircleShapeIcon, SquareShapeIcon, TriangleShapeIcon, VerticalSlicesShapeIcon } from "./icons/Icons";
 
 interface ShapeSelectorProps {
-  activeShape: ShapeType;
-  onSelect: (shape: ShapeType) => void;
+  activeShape: ToolMode;
+  onSelect: (shape: ToolMode) => void;
 }
 
-const CANONICAL_ORDER: ShapeType[] = ["circle", "square", "triangle"];
+const CANONICAL_ORDER: ToolMode[] = ["circle", "square", "triangle", "vertical-slices"];
 
-const ICONS: Record<ShapeType, (props: { width?: number; height?: number }) => React.ReactElement> = {
+const ICONS: Record<ToolMode, (props: { width?: number; height?: number }) => React.ReactElement> = {
   circle: CircleShapeIcon,
   square: SquareShapeIcon,
   triangle: TriangleShapeIcon,
+  "vertical-slices": VerticalSlicesShapeIcon,
 };
 
-const LABELS: Record<ShapeType, string> = {
+const LABELS: Record<ToolMode, string> = {
   circle: "Circle",
   square: "Square",
   triangle: "Triangle",
+  "vertical-slices": "Vertical slices",
 };
 
-function carouselOrder(active: ShapeType): ShapeType[] {
+function carouselOrder(active: ToolMode): ToolMode[] {
   const idx = CANONICAL_ORDER.indexOf(active);
   const prev = CANONICAL_ORDER[(idx + CANONICAL_ORDER.length - 1) % CANONICAL_ORDER.length];
   const next = CANONICAL_ORDER[(idx + 1) % CANONICAL_ORDER.length];
@@ -34,6 +36,7 @@ export function ShapeSelector({ activeShape, onSelect }: ShapeSelectorProps) {
   return (
     <div className="shape-selector">
       <div className="shape-row" role="group" aria-label="Slice shape">
+        <div className="shape-row-edge-fade shape-row-edge-fade-left" aria-hidden="true" />
         {order.map((shape) => {
           const Icon = ICONS[shape];
           const isActive = shape === activeShape;
@@ -50,6 +53,7 @@ export function ShapeSelector({ activeShape, onSelect }: ShapeSelectorProps) {
             </button>
           );
         })}
+        <div className="shape-row-edge-fade shape-row-edge-fade-right" aria-hidden="true" />
       </div>
       <div className="dot-indicators" aria-hidden="true">
         {CANONICAL_ORDER.map((shape, i) => (

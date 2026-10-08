@@ -1,5 +1,6 @@
-import { renderDocument } from "./render";
+import { drawVerticalSlices, renderDocument } from "./render";
 import type { EditorDocument } from "./types";
+import { computeVerticalSlicesLayout, verticalSlicesBoundingBox } from "./verticalSlices";
 
 export type ExportFormat = "png" | "jpeg";
 
@@ -27,6 +28,49 @@ export async function exportDocument(doc: EditorDocument, options: ExportOptions
   }
 
   const { width: originalWidth, height: originalHeight } = doc.original;
+
+  // Vertical-slices mode hides the original photo and exports only the
+  // sliced composition, cropped tightly to the rotated strips' bounding
+  // box with a transparent background — "render exactly what the preview
+  // shows," not the full (hidden) original image canvas.
+  if (doc.activeShape === "vertical-slices") {
+    const layout = computeVerticalSlicesLayout(doc.verticalSlices, originalWidth, originalHeight);
+    const bbox = verticalSlicesBoundingBox(layout);
+
+    let outWidth = bbox.width;
+    let outHeight = bbox.height;
+    if (options.maxEdge && options.maxEdge > 0) {
+      const longEdge = Math.max(outWidth, outHeight);
+      if (longEdge > options.maxEdge) {
+        const scale = options.maxEdge / longEdge;
+        outWidth = Math.round(outWidth * scale);
+        outHeight = Math.round(outHeight * scale);
+      }
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(outWidth));
+    canvas.height = Math.max(1, Math.round(outHeight));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not create export canvas context");
+
+    const scale = canvas.width / bbox.width;
+    ctx.save();
+    ctx.scale(scale, scale);
+    // drawVerticalSlices translates to `center` before drawing strips in
+    // local (composition-centered) coordinates, the same coordinates the
+    // bounding box was computed in. Using -bbox.x/-bbox.y as that center
+    // places the bbox's top-left corner exactly at the canvas origin.
+    drawVerticalSlices(ctx, { ...layout, center: { x: -bbox.x, y: -bbox.y } }, doc.original);
+    ctx.restore();
+
+    const mimeType = options.format === "png" ? "image/png" : "image/jpeg";
+    const quality = options.format === "jpeg" ? options.quality ?? 0.92 : undefined;
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality));
+    if (!blob) throw new Error("Export failed: could not encode image");
+    return { blob, width: canvas.width, height: canvas.height };
+  }
+
   let outWidth = originalWidth;
   let outHeight = originalHeight;
 

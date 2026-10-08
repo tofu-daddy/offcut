@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { History } from "../history";
-import type { DocumentSnapshot } from "../types";
+import { DEFAULT_VERTICAL_SLICES, type DocumentSnapshot } from "../types";
 
 function snap(n: number): DocumentSnapshot {
   return {
@@ -15,6 +15,7 @@ function snap(n: number): DocumentSnapshot {
     ],
     selectedLayerId: `layer-${n}`,
     activeShape: "square",
+    verticalSlices: { ...DEFAULT_VERTICAL_SLICES },
   };
 }
 

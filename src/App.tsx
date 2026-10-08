@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExportSheet } from "./components/ExportSheet";
 import { Header } from "./components/Header";
+import { OffsetSlider } from "./components/OffsetSlider";
 import { PhotoCanvas } from "./components/PhotoCanvas";
 import { PhotoPicker } from "./components/PhotoPicker";
+import { RotationSlider } from "./components/RotationSlider";
 import { ShapeSelector } from "./components/ShapeSelector";
+import { SliceCountStepper } from "./components/SliceCountStepper";
 import { TransformToolbar } from "./components/TransformToolbar";
 import { releaseOriginalImage } from "./editor/imageLoader";
-import type { OriginalImage } from "./editor/types";
+import { DEFAULT_VERTICAL_SLICES, type OriginalImage } from "./editor/types";
 import { useEditorDocument } from "./hooks/useEditorDocument";
 import "./App.css";
 
@@ -46,15 +49,18 @@ export default function App() {
     };
   }, []);
 
+  const hasVerticalSlicesEdits =
+    JSON.stringify(doc.verticalSlices) !== JSON.stringify(DEFAULT_VERTICAL_SLICES);
+
   const handleBack = useCallback(() => {
-    if (doc.layers.length > 0) {
+    if (doc.layers.length > 0 || hasVerticalSlicesEdits) {
       setDiscardConfirmOpen(true);
     } else {
       releaseOriginalImage(previousOriginalRef.current);
       previousOriginalRef.current = null;
       editor.reset();
     }
-  }, [doc.layers.length, editor]);
+  }, [doc.layers.length, hasVerticalSlicesEdits, editor]);
 
   const confirmDiscard = useCallback(() => {
     setDiscardConfirmOpen(false);
@@ -86,6 +92,10 @@ export default function App() {
   }
 
   const hasSelection = doc.selectedLayerId !== null;
+  const isVerticalSlices = doc.activeShape === "vertical-slices";
+  // Vertical-slices mode has no "selected layer" — the whole composition is
+  // always the implicit transform target, so flip/rotate stay enabled.
+  const canTransform = isVerticalSlices ? true : hasSelection;
 
   return (
     <div className="app-shell">
@@ -93,19 +103,42 @@ export default function App() {
 
       <div className="canvas-area">
         <PhotoCanvas editor={editor} onAnnounce={announce} />
+        {isVerticalSlices && (
+          <OffsetSlider
+            offsetPx={doc.verticalSlices.offsetPx}
+            onBeginGesture={editor.beginGesture}
+            onChange={(offsetPx) => editor.updateVerticalSlices({ offsetPx })}
+            onCommitGesture={editor.commitGesture}
+          />
+        )}
       </div>
 
-      <div className="bottom-controls">
+      <div className={isVerticalSlices ? "bottom-controls bottom-controls-vertical-slices" : "bottom-controls"}>
         <TransformToolbar
           canUndo={editor.canUndo}
           canRedo={editor.canRedo}
-          hasSelection={hasSelection}
+          hasSelection={canTransform}
           onUndo={editor.undo}
           onRedo={editor.redo}
-          onFlipHorizontal={() => editor.flipSelected("horizontal")}
-          onFlipVertical={() => editor.flipSelected("vertical")}
-          onRotate={editor.rotateSelected90}
+          onFlipHorizontal={() =>
+            isVerticalSlices ? editor.flipVerticalSlices("horizontal") : editor.flipSelected("horizontal")
+          }
+          onFlipVertical={() =>
+            isVerticalSlices ? editor.flipVerticalSlices("vertical") : editor.flipSelected("vertical")
+          }
+          onRotate={isVerticalSlices ? editor.rotateVerticalSlices90 : editor.rotateSelected90}
         />
+        {isVerticalSlices && (
+          <>
+            <SliceCountStepper count={doc.verticalSlices.sliceCount} onChange={editor.setSliceCount} />
+            <RotationSlider
+              rotationDeg={doc.verticalSlices.rotationDeg}
+              onBeginGesture={editor.beginGesture}
+              onChange={(rotationDeg) => editor.updateVerticalSlices({ rotationDeg })}
+              onCommitGesture={editor.commitGesture}
+            />
+          </>
+        )}
         <ShapeSelector activeShape={doc.activeShape} onSelect={editor.setActiveShape} />
       </div>
 

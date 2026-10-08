@@ -79,7 +79,11 @@ export function PhotoCanvas({ editor, onAnnounce }: PhotoCanvasProps) {
     return createViewport(original0.width, original0.height, containerSize.width, containerSize.height);
   }, [original0, containerSize]);
 
-  const selectedLayer: SliceLayer | undefined = doc.layers.find((l) => l.id === doc.selectedLayerId);
+  // No selection concept in vertical-slices mode — without this guard, a
+  // layer selected before switching modes would leave its delete button
+  // and aria-label floating over the (now hidden) normal canvas view.
+  const selectedLayer: SliceLayer | undefined =
+    doc.activeShape === "vertical-slices" ? undefined : doc.layers.find((l) => l.id === doc.selectedLayerId);
 
   const deleteButtonPos = useMemo(() => {
     if (!selectedLayer || !vp) return null;
@@ -127,6 +131,10 @@ export function PhotoCanvas({ editor, onAnnounce }: PhotoCanvasProps) {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // Vertical-slices mode has no drag-to-create/select/move interaction on
+    // the canvas itself — it's driven entirely by the slice-count stepper
+    // and the rotation/offset sliders instead.
+    if (doc.activeShape === "vertical-slices") return;
     const original = doc.original;
     if (!original || !vp) return;
     const imagePoint = getPointerImagePoint(e);
@@ -243,7 +251,7 @@ export function PhotoCanvas({ editor, onAnnounce }: PhotoCanvasProps) {
     const mode = modeRef.current;
     const original = doc.original;
 
-    if (mode.kind === "creating" && original) {
+    if (mode.kind === "creating" && original && doc.activeShape !== "vertical-slices") {
       const region = dragGuideRef.current;
       if (region && region.size >= MIN_SOURCE_SIZE) {
         const destination: DestinationTransform = {
@@ -309,9 +317,15 @@ export function PhotoCanvas({ editor, onAnnounce }: PhotoCanvasProps) {
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           role="img"
-          aria-label={selectedLayer ? `Photo with ${selectedLayer.shape} slice selected` : "Photo preview"}
+          aria-label={
+            doc.activeShape === "vertical-slices"
+              ? "Vertical slices preview"
+              : selectedLayer
+                ? `Photo with ${selectedLayer.shape} slice selected`
+                : "Photo preview"
+          }
         />
-        {doc.layers.length === 0 && !dragGuide && (
+        {doc.layers.length === 0 && !dragGuide && doc.activeShape !== "vertical-slices" && (
           <p className="canvas-hint" aria-hidden="true">
             Drag on the photo to create a slice
           </p>

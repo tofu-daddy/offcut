@@ -122,6 +122,33 @@ export function TriangleShapeIcon(props: IconProps) {
   );
 }
 
+export function VerticalSlicesShapeIcon(props: IconProps) {
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true" {...props}>
+      <rect x="2" y="4" width="4" height="28" fill="currentColor" />
+      <rect x="9" y="0" width="4" height="36" fill="currentColor" />
+      <rect x="16" y="4" width="4" height="28" fill="currentColor" />
+      <rect x="23" y="0" width="4" height="36" fill="currentColor" />
+      <rect x="30" y="4" width="4" height="28" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function RotateCcwIcon(props: IconProps) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M3 12C3 10.22 3.5278 8.4799 4.5168 6.9998C5.5057 5.5198 6.9113 4.3663 8.5558 3.6851C10.2004 3.0039 12.01 2.8257 13.7558 3.1729C15.5016 3.5202 17.1053 4.3774 18.364 5.636C19.6226 6.8947 20.4798 8.4984 20.8271 10.2442C21.1743 11.99 20.9961 13.7996 20.3149 15.4442C19.6337 17.0887 18.4802 18.4943 17.0001 19.4832C15.5201 20.4722 13.78 21 12 21C9.48 21 7.07 20 5.26 18.26L3 16"
+        strokeWidth="1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M8 16H3V21" strokeWidth="1.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>

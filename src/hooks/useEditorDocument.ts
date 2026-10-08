@@ -3,16 +3,32 @@ import { History } from "../editor/history";
 import {
   createLayerId,
   snapshotOf,
+  DEFAULT_VERTICAL_SLICES,
+  VERTICAL_SLICES_COUNT_MAX,
+  VERTICAL_SLICES_COUNT_MIN,
+  VERTICAL_SLICES_OFFSET_MAX,
   type DestinationTransform,
   type EditorDocument,
   type OriginalImage,
   type ShapeType,
   type SliceLayer,
   type SourceRegion,
+  type ToolMode,
+  type VerticalSlicesSettings,
 } from "../editor/types";
 
 function emptyDocument(): EditorDocument {
-  return { original: null, layers: [], selectedLayerId: null, activeShape: "square" };
+  return {
+    original: null,
+    layers: [],
+    selectedLayerId: null,
+    activeShape: "square",
+    verticalSlices: { ...DEFAULT_VERTICAL_SLICES },
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 export interface EditorApi {
@@ -20,7 +36,7 @@ export interface EditorApi {
   canUndo: boolean;
   canRedo: boolean;
   setOriginal: (original: OriginalImage) => void;
-  setActiveShape: (shape: ShapeType) => void;
+  setActiveShape: (shape: ToolMode) => void;
   selectLayer: (id: string | null) => void;
   createSlice: (shape: ShapeType, source: SourceRegion, destination: DestinationTransform) => string;
   beginGesture: () => void;
@@ -31,6 +47,12 @@ export interface EditorApi {
   rotateSelected90: () => void;
   deleteSelected: () => void;
   deleteLayer: (id: string) => void;
+  /** Discrete, immediately-committed step (one undo entry per +/- press). */
+  setSliceCount: (count: number) => void;
+  /** Live update during a slider drag; pair with beginGesture/commitGesture. */
+  updateVerticalSlices: (patch: Partial<VerticalSlicesSettings>) => void;
+  flipVerticalSlices: (axis: "horizontal" | "vertical") => void;
+  rotateVerticalSlices90: () => void;
   undo: () => void;
   redo: () => void;
   reset: () => void;
@@ -70,13 +92,19 @@ export function useEditorDocument(): EditorApi {
     (original: OriginalImage) => {
       historyRef.current.clear();
       syncHistoryFlags();
-      setDoc(() => ({ original, layers: [], selectedLayerId: null, activeShape: "square" }));
+      setDoc(() => ({
+        original,
+        layers: [],
+        selectedLayerId: null,
+        activeShape: "square",
+        verticalSlices: { ...DEFAULT_VERTICAL_SLICES },
+      }));
     },
     [setDoc, syncHistoryFlags],
   );
 
   const setActiveShape = useCallback(
-    (shape: ShapeType) => {
+    (shape: ToolMode) => {
       setDoc((prev) => ({ ...prev, activeShape: shape }));
     },
     [setDoc],
@@ -126,7 +154,12 @@ export function useEditorDocument(): EditorApi {
     const baseline = gestureBaselineRef.current;
     gestureBaselineRef.current = null;
     if (!baseline) return;
-    const changed = JSON.stringify(baseline.layers) !== JSON.stringify(docRef.current.layers);
+    // Compare layers AND verticalSlices (not just layers) so a vertical-
+    // slices rotation/offset drag — which never touches `layers` — is
+    // still detected as a change and gets its own undo entry.
+    const changed =
+      JSON.stringify(baseline.layers) !== JSON.stringify(docRef.current.layers) ||
+      JSON.stringify(baseline.verticalSlices) !== JSON.stringify(docRef.current.verticalSlices);
     if (!changed) return;
     historyRef.current.push(baseline);
     syncHistoryFlags();
@@ -136,7 +169,12 @@ export function useEditorDocument(): EditorApi {
     const baseline = gestureBaselineRef.current;
     gestureBaselineRef.current = null;
     if (!baseline) return;
-    setDoc((prev) => ({ ...prev, layers: baseline.layers, selectedLayerId: baseline.selectedLayerId }));
+    setDoc((prev) => ({
+      ...prev,
+      layers: baseline.layers,
+      selectedLayerId: baseline.selectedLayerId,
+      verticalSlices: baseline.verticalSlices,
+    }));
   }, [setDoc]);
 
   const flipSelected = useCallback(
@@ -175,6 +213,50 @@ export function useEditorDocument(): EditorApi {
     }));
   }, [pushHistory, setDoc]);
 
+  const setSliceCount = useCallback(
+    (count: number) => {
+      const clamped = clamp(Math.round(count), VERTICAL_SLICES_COUNT_MIN, VERTICAL_SLICES_COUNT_MAX);
+      if (clamped === docRef.current.verticalSlices.sliceCount) return;
+      pushHistory();
+      setDoc((prev) => ({ ...prev, verticalSlices: { ...prev.verticalSlices, sliceCount: clamped } }));
+    },
+    [pushHistory, setDoc],
+  );
+
+  const updateVerticalSlices = useCallback(
+    (patch: Partial<VerticalSlicesSettings>) => {
+      const safePatch = { ...patch };
+      if (safePatch.offsetPx !== undefined) {
+        safePatch.offsetPx = clamp(safePatch.offsetPx, -VERTICAL_SLICES_OFFSET_MAX, VERTICAL_SLICES_OFFSET_MAX);
+      }
+      setDoc((prev) => ({ ...prev, verticalSlices: { ...prev.verticalSlices, ...safePatch } }));
+    },
+    [setDoc],
+  );
+
+  const flipVerticalSlices = useCallback(
+    (axis: "horizontal" | "vertical") => {
+      pushHistory();
+      setDoc((prev) => ({
+        ...prev,
+        verticalSlices: {
+          ...prev.verticalSlices,
+          flipH: axis === "horizontal" ? !prev.verticalSlices.flipH : prev.verticalSlices.flipH,
+          flipV: axis === "vertical" ? !prev.verticalSlices.flipV : prev.verticalSlices.flipV,
+        },
+      }));
+    },
+    [pushHistory, setDoc],
+  );
+
+  const rotateVerticalSlices90 = useCallback(() => {
+    pushHistory();
+    setDoc((prev) => ({
+      ...prev,
+      verticalSlices: { ...prev.verticalSlices, rotationDeg: prev.verticalSlices.rotationDeg + 90 },
+    }));
+  }, [pushHistory, setDoc]);
+
   const deleteLayer = useCallback(
     (id: string) => {
       pushHistory();
@@ -201,6 +283,7 @@ export function useEditorDocument(): EditorApi {
       layers: prevSnap.layers,
       selectedLayerId: prevSnap.selectedLayerId,
       activeShape: prevSnap.activeShape,
+      verticalSlices: prevSnap.verticalSlices,
     }));
     syncHistoryFlags();
   }, [setDoc, syncHistoryFlags]);
@@ -213,6 +296,7 @@ export function useEditorDocument(): EditorApi {
       layers: nextSnap.layers,
       selectedLayerId: nextSnap.selectedLayerId,
       activeShape: nextSnap.activeShape,
+      verticalSlices: nextSnap.verticalSlices,
     }));
     syncHistoryFlags();
   }, [setDoc, syncHistoryFlags]);
@@ -239,6 +323,10 @@ export function useEditorDocument(): EditorApi {
     rotateSelected90,
     deleteSelected,
     deleteLayer,
+    setSliceCount,
+    updateVerticalSlices,
+    flipVerticalSlices,
+    rotateVerticalSlices90,
     undo,
     redo,
     reset,
